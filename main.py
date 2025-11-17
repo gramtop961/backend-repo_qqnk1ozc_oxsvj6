@@ -1,8 +1,10 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional
 
-app = FastAPI()
+app = FastAPI(title="Thermal Scout API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -63,6 +65,29 @@ def test_database():
     response["database_name"] = "✅ Set" if os.getenv("DATABASE_NAME") else "❌ Not Set"
     
     return response
+
+# Lead capture endpoint for Thermal Scout
+class InquiryIn(BaseModel):
+    name: str
+    email: str
+    phone: Optional[str] = None
+    company: Optional[str] = None
+    service: Optional[str] = None
+    message: Optional[str] = None
+    consent: bool = False
+
+@app.post("/api/inquiries")
+def create_inquiry(payload: InquiryIn):
+    try:
+        from database import create_document
+        from schemas import Inquiry as InquirySchema
+
+        # Validate using the schema
+        inquiry = InquirySchema(**payload.model_dump())
+        new_id = create_document("inquiry", inquiry)
+        return {"success": True, "id": new_id}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 if __name__ == "__main__":
